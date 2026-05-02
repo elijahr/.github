@@ -1,0 +1,56 @@
+name: PR Agent
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Primary model (litellm-style id)
+        required: false
+        type: string
+        default: openrouter/deepseek/deepseek-v4-flash
+      fallback_models:
+        description: JSON array of fallback model ids
+        required: false
+        type: string
+        default: '["openrouter/deepseek/deepseek-v4-pro","openrouter/anthropic/claude-sonnet-4.6"]'
+      custom_model_max_tokens:
+        description: Context window override for unrecognized models
+        required: false
+        type: string
+        default: "200000"
+      auto_review:
+        required: false
+        type: string
+        default: "true"
+      auto_describe:
+        required: false
+        type: string
+        default: "true"
+      auto_improve:
+        required: false
+        type: string
+        default: "false"
+    secrets:
+      OPENROUTER_KEY:
+        required: true
+
+jobs:
+  pr_agent:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: PR Agent
+        uses: qodo-ai/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER.KEY: ${{ secrets.OPENROUTER_KEY }}
+          CONFIG.MODEL: ${{ inputs.model }}
+          CONFIG.FALLBACK_MODELS: ${{ inputs.fallback_models }}
+          CONFIG.CUSTOM_MODEL_MAX_TOKENS: ${{ inputs.custom_model_max_tokens }}
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: ${{ inputs.auto_review }}
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: ${{ inputs.auto_describe }}
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: ${{ inputs.auto_improve }}
