@@ -7,12 +7,12 @@ on:
         description: Primary model (litellm-style id)
         required: false
         type: string
-        default: openrouter/deepseek/deepseek-v4-flash
+        default: openrouter/deepseek/deepseek-v4-pro
       fallback_models:
         description: JSON array of fallback model ids
         required: false
         type: string
-        default: '["openrouter/deepseek/deepseek-v4-pro","openrouter/anthropic/claude-sonnet-4.6"]'
+        default: '["openrouter/deepseek/deepseek-v4-flash","openrouter/anthropic/claude-sonnet-4.6"]'
       custom_model_max_tokens:
         description: Context window override for unrecognized models
         required: false

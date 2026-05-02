@@ -38,8 +38,8 @@ workflows cannot grant themselves permissions the caller doesn't have.
 
 ## Defaults
 
-- Primary model: `openrouter/deepseek/deepseek-v4-flash`
-- Fallback: `openrouter/deepseek/deepseek-v4-pro`, `openrouter/anthropic/claude-sonnet-4.6`
+- Primary model: `openrouter/deepseek/deepseek-v4-pro`
+- Fallback: `openrouter/deepseek/deepseek-v4-flash`, `openrouter/anthropic/claude-sonnet-4.6`
 - Auto-review and auto-describe enabled; auto-improve disabled (noisy)
 
 Override per repo via `with:` in the stub:
