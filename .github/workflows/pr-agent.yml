@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       model:
-        description: Primary model (litellm-style id)
+        description: Primary model (litellm-style id; openai/<openrouter-slug> routes via OpenAI-compatible client at OPENAI.API_BASE)
         required: false
         type: string
-        default: openrouter/deepseek/deepseek-v4-pro
+        default: openai/deepseek/deepseek-v4-pro
       fallback_models:
         description: JSON array of fallback model ids
         required: false
         type: string
-        default: '["openrouter/deepseek/deepseek-v4-flash","openrouter/anthropic/claude-sonnet-4.6"]'
+        default: '["openai/deepseek/deepseek-v4-flash","openai/anthropic/claude-sonnet-latest"]'
       custom_model_max_tokens:
         description: Context window override for unrecognized models
         required: false
@@ -48,13 +48,13 @@ jobs:
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Dynaconf reads OPENROUTER__KEY (double underscore) into the
-          # OPENROUTER.KEY setting that pr-agent's litellm_ai_handler reads.
-          OPENROUTER__KEY: ${{ secrets.OPENROUTER_KEY }}
-          # Defensive aliases in case any path reads the canonical litellm
-          # env var or the OpenAI fallback.
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}
+          # OpenRouter as an OpenAI-compatible endpoint. The action runner
+          # only translates OPENAI_KEY env -> OPENAI.KEY Dynaconf setting;
+          # there is no equivalent path for OPENROUTER. Routing via openai/
+          # prefix + OPENAI.API_BASE makes litellm use the openai client
+          # against OpenRouter's URL with the OpenRouter key as bearer.
           OPENAI_KEY: ${{ secrets.OPENROUTER_KEY }}
+          OPENAI.API_BASE: https://openrouter.ai/api/v1
           config.model: ${{ inputs.model }}
           config.fallback_models: ${{ inputs.fallback_models }}
           config.custom_model_max_tokens: ${{ inputs.custom_model_max_tokens }}
