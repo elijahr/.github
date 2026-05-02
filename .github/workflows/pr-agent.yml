@@ -21,7 +21,7 @@ on:
       auto_review:
         required: false
         type: string
-        default: "true"
+        default: "false"
       auto_describe:
         required: false
         type: string
@@ -29,7 +29,7 @@ on:
       auto_improve:
         required: false
         type: string
-        default: "false"
+        default: "true"
     secrets:
       OPENROUTER_KEY:
         required: true
