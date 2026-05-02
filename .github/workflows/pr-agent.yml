@@ -45,15 +45,25 @@ jobs:
     steps:
       - name: PR Agent
         id: pr_agent
-        uses: qodo-ai/pr-agent@main
+        uses: the-pr-agent/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # OpenRouter as an OpenAI-compatible endpoint. The action runner
-          # only translates OPENAI_KEY env -> OPENAI.KEY Dynaconf setting;
-          # there is no equivalent path for OPENROUTER. Routing via openai/
-          # prefix + OPENAI.API_BASE makes litellm use the openai client
-          # against OpenRouter's URL with the OpenRouter key as bearer.
+          # OpenRouter as an OpenAI-compatible endpoint.
+          #
+          # The pr-agent action runner only translates OPENAI_KEY env into the
+          # OPENAI.KEY Dynaconf setting; there is no translation path for
+          # OPENROUTER.* env vars, so the handler's openrouter block (which
+          # would set litellm.api_key) is dead code in this context.
+          #
+          # The handler's OPENAI.KEY block sets litellm.openai_key but NOT
+          # litellm.api_key, and chat_completion only injects kwargs["api_key"]
+          # when litellm.api_key is set. So we must give litellm the auth via
+          # the canonical OPENAI_API_KEY env var, which it reads natively for
+          # openai-compatible routing. OPENAI.API_BASE retargets the request
+          # at OpenRouter; the openai/ litellm model prefix selects the
+          # openai-compatible client.
           OPENAI_KEY: ${{ secrets.OPENROUTER_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           OPENAI.API_BASE: https://openrouter.ai/api/v1
           config.model: ${{ inputs.model }}
           config.fallback_models: ${{ inputs.fallback_models }}
