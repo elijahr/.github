@@ -48,7 +48,9 @@ jobs:
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           OPENROUTER.KEY: ${{ secrets.OPENROUTER_KEY }}
+          OPENAI_KEY: ${{ secrets.OPENROUTER_KEY }}
           CONFIG.MODEL: ${{ inputs.model }}
           CONFIG.FALLBACK_MODELS: ${{ inputs.fallback_models }}
           CONFIG.CUSTOM_MODEL_MAX_TOKENS: ${{ inputs.custom_model_max_tokens }}
