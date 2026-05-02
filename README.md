@@ -19,12 +19,18 @@ on:
 
 jobs:
   call:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: elijahr/.github/.github/workflows/pr-agent.yml@devel
     secrets:
       OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
 ```
 
-The consumer repo needs `OPENROUTER_KEY` set as a repository secret.
+The consumer repo needs `OPENROUTER_KEY` set as a repository secret. The
+explicit `permissions:` block on the caller job is required \xe2\x80\x94 reusable
+workflows cannot grant themselves permissions the caller doesn't have.
 
 ### Workflow template
 
@@ -41,6 +47,10 @@ Override per repo via `with:` in the stub:
 ```yaml
 jobs:
   call:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: elijahr/.github/.github/workflows/pr-agent.yml@devel
     with:
       model: openrouter/anthropic/claude-sonnet-4.6
