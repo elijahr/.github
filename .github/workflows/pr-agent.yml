@@ -44,6 +44,7 @@ jobs:
       issues: write
     steps:
       - name: PR Agent
+        id: pr_agent
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,3 +55,30 @@ jobs:
           GITHUB_ACTION_CONFIG.AUTO_REVIEW: ${{ inputs.auto_review }}
           GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: ${{ inputs.auto_describe }}
           GITHUB_ACTION_CONFIG.AUTO_IMPROVE: ${{ inputs.auto_improve }}
+
+      - name: Verify review actually posted
+        if: always() && steps.pr_agent.conclusion != 'skipped'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No PR number in event context; skipping verification."
+            exit 0
+          fi
+          echo "Checking last github-actions[bot] comment on $REPO PR #$PR_NUMBER..."
+          LATEST=$(gh api "/repos/$REPO/issues/$PR_NUMBER/comments" \
+            --jq '[.[] | select(.user.login == "github-actions[bot]")] | sort_by(.updated_at) | reverse | .[0]')
+          BODY=$(echo "$LATEST" | jq -r '.body // ""')
+          if [ -z "$BODY" ]; then
+            echo "::warning::No github-actions[bot] comment found. PR Agent may have skipped this event."
+            exit 0
+          fi
+          if echo "$BODY" | grep -qiE '^[[:space:]]*Preparing review\.\.\.[[:space:]]*$|^[[:space:]]*Preparing PR description\.\.\.[[:space:]]*$'; then
+            echo "::error::PR Agent left a 'Preparing...' placeholder. The LLM call likely failed (check earlier log for AuthenticationError, RateLimitError, etc)."
+            echo "Comment body was:"
+            echo "$BODY"
+            exit 1
+          fi
+          echo "PR Agent posted a real comment. OK."
