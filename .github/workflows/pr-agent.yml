@@ -45,25 +45,17 @@ jobs:
     steps:
       - name: PR Agent
         id: pr_agent
-        uses: the-pr-agent/pr-agent@main
+        uses: axiomantic/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # litellm-native OpenRouter routing.
-          #
-          # Background: pr-agent's action runner only translates OPENAI_KEY
-          # env into the OPENAI.KEY Dynaconf setting. The handler's
-          # OPENROUTER.KEY block (which would set litellm.api_key) is gated
-          # behind that setting and never fires from env vars alone.
-          #
-          # We deliberately do NOT set OPENAI_KEY here — that would activate
-          # the OPENAI.KEY handler block, which sets openai.api_key /
-          # litellm.openai_key globally and pollutes routing. Without it,
-          # litellm.api_key is left as DUMMY_LITELLM_API_KEY (line 43 in the
-          # handler), chat_completion's "inject api_key" block (line 412)
-          # short-circuits, and the call falls through to litellm's native
-          # provider routing — which reads OPENROUTER_API_KEY env directly
-          # for openrouter/<model> prefixes.
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}
+          # axiomantic/pr-agent is our fork that adds an OPENROUTER_KEY env ->
+          # OPENROUTER.KEY Dynaconf setting translation in github_action_runner.py.
+          # That activates the existing OpenRouter handler block in
+          # litellm_ai_handler.py which sets litellm.api_key correctly so
+          # chat_completion injects an Authorization header. Upstream
+          # (the-pr-agent/pr-agent) only translates OPENAI_KEY and leaves the
+          # OpenRouter path dead-code in the GitHub Action context.
+          OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
           config.model: ${{ inputs.model }}
           config.fallback_models: ${{ inputs.fallback_models }}
           config.custom_model_max_tokens: ${{ inputs.custom_model_max_tokens }}
