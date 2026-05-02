@@ -48,15 +48,19 @@ jobs:
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Dynaconf reads OPENROUTER__KEY (double underscore) into the
+          # OPENROUTER.KEY setting that pr-agent's litellm_ai_handler reads.
+          OPENROUTER__KEY: ${{ secrets.OPENROUTER_KEY }}
+          # Defensive aliases in case any path reads the canonical litellm
+          # env var or the OpenAI fallback.
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}
-          OPENROUTER.KEY: ${{ secrets.OPENROUTER_KEY }}
           OPENAI_KEY: ${{ secrets.OPENROUTER_KEY }}
-          CONFIG.MODEL: ${{ inputs.model }}
-          CONFIG.FALLBACK_MODELS: ${{ inputs.fallback_models }}
-          CONFIG.CUSTOM_MODEL_MAX_TOKENS: ${{ inputs.custom_model_max_tokens }}
-          GITHUB_ACTION_CONFIG.AUTO_REVIEW: ${{ inputs.auto_review }}
-          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: ${{ inputs.auto_describe }}
-          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: ${{ inputs.auto_improve }}
+          config.model: ${{ inputs.model }}
+          config.fallback_models: ${{ inputs.fallback_models }}
+          config.custom_model_max_tokens: ${{ inputs.custom_model_max_tokens }}
+          github_action_config.auto_review: ${{ inputs.auto_review }}
+          github_action_config.auto_describe: ${{ inputs.auto_describe }}
+          github_action_config.auto_improve: ${{ inputs.auto_improve }}
 
       - name: Verify review actually posted
         if: always() && steps.pr_agent.conclusion != 'skipped'
