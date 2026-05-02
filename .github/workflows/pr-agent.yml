@@ -4,15 +4,15 @@ on:
   workflow_call:
     inputs:
       model:
-        description: Primary model (litellm-style id; openai/<openrouter-slug> routes via OpenAI-compatible client at OPENAI.API_BASE)
+        description: Primary model (litellm-style id; openrouter/<slug> routes via litellm's OpenRouter provider using OPENROUTER_API_KEY env)
         required: false
         type: string
-        default: openai/deepseek/deepseek-v4-pro
+        default: openrouter/deepseek/deepseek-v4-pro
       fallback_models:
         description: JSON array of fallback model ids
         required: false
         type: string
-        default: '["openai/deepseek/deepseek-v4-flash","openai/anthropic/claude-sonnet-latest"]'
+        default: '["openrouter/deepseek/deepseek-v4-flash","openrouter/anthropic/claude-sonnet-latest"]'
       custom_model_max_tokens:
         description: Context window override for unrecognized models
         required: false
@@ -48,23 +48,22 @@ jobs:
         uses: the-pr-agent/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # OpenRouter as an OpenAI-compatible endpoint.
+          # litellm-native OpenRouter routing.
           #
-          # The pr-agent action runner only translates OPENAI_KEY env into the
-          # OPENAI.KEY Dynaconf setting; there is no translation path for
-          # OPENROUTER.* env vars, so the handler's openrouter block (which
-          # would set litellm.api_key) is dead code in this context.
+          # Background: pr-agent's action runner only translates OPENAI_KEY
+          # env into the OPENAI.KEY Dynaconf setting. The handler's
+          # OPENROUTER.KEY block (which would set litellm.api_key) is gated
+          # behind that setting and never fires from env vars alone.
           #
-          # The handler's OPENAI.KEY block sets litellm.openai_key but NOT
-          # litellm.api_key, and chat_completion only injects kwargs["api_key"]
-          # when litellm.api_key is set. So we must give litellm the auth via
-          # the canonical OPENAI_API_KEY env var, which it reads natively for
-          # openai-compatible routing. OPENAI.API_BASE retargets the request
-          # at OpenRouter; the openai/ litellm model prefix selects the
-          # openai-compatible client.
-          OPENAI_KEY: ${{ secrets.OPENROUTER_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENROUTER_KEY }}
-          OPENAI.API_BASE: https://openrouter.ai/api/v1
+          # We deliberately do NOT set OPENAI_KEY here — that would activate
+          # the OPENAI.KEY handler block, which sets openai.api_key /
+          # litellm.openai_key globally and pollutes routing. Without it,
+          # litellm.api_key is left as DUMMY_LITELLM_API_KEY (line 43 in the
+          # handler), chat_completion's "inject api_key" block (line 412)
+          # short-circuits, and the call falls through to litellm's native
+          # provider routing — which reads OPENROUTER_API_KEY env directly
+          # for openrouter/<model> prefixes.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           config.model: ${{ inputs.model }}
           config.fallback_models: ${{ inputs.fallback_models }}
           config.custom_model_max_tokens: ${{ inputs.custom_model_max_tokens }}
