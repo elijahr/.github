@@ -210,6 +210,10 @@ jobs:
           LLM_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           LLM_BASE_URL: ${{ inputs.base_url }}
           LLM_MODEL: ${{ inputs.model }}
+          # Forwarded so the review footer shows the configured trigger
+          # rather than the default `/ai-review`.
+          MOMUS_TRIGGER_COMMAND: ${{ inputs.trigger_command }}
+          MOMUS_TRIGGER_MENTION: ${{ inputs.trigger_mention }}
           # Prefer the App-minted token (so APPROVE works) and fall back to
           # the default GITHUB_TOKEN when the App isn't configured.
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token || secrets.GITHUB_TOKEN }}
