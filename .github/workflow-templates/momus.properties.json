@@ -1,0 +1,6 @@
+{
+  "name": "Momus AI PR Review",
+  "description": "Multi-phase LLM PR review with inline comments and APPROVE/REQUEST_CHANGES verdict (axiomantic/momus)",
+  "iconName": "octicon git-pull-request",
+  "categories": ["Code Quality", "Code review"]
+}

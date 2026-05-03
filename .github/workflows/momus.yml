@@ -214,6 +214,11 @@ jobs:
           # rather than the default `/ai-review`.
           MOMUS_TRIGGER_COMMAND: ${{ inputs.trigger_command }}
           MOMUS_TRIGGER_MENTION: ${{ inputs.trigger_mention }}
+          # Tells momus the GITHUB_TOKEN is a custom GitHub App installation
+          # token (capable of APPROVE) rather than the default github-actions
+          # token (which GitHub rejects from approving). Without this signal
+          # momus conservatively downgrades APPROVE to COMMENT.
+          MOMUS_USING_APP_TOKEN: ${{ steps.detect_app.outputs.has_app }}
           # Prefer the App-minted token (so APPROVE works) and fall back to
           # the default GITHUB_TOKEN when the App isn't configured.
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token || secrets.GITHUB_TOKEN }}

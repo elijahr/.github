@@ -1,6 +1,0 @@
-{
-  "name": "PR Agent (Qodo + OpenRouter)",
-  "description": "AI-powered PR review/describe via OpenRouter (DeepSeek V4 Pro by default)",
-  "iconName": "octicon git-pull-request",
-  "categories": ["Code Quality", "Code review"]
-}
