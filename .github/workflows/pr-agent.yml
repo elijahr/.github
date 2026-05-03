@@ -43,6 +43,31 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - name: Checkout repo for convention discovery
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+        continue-on-error: true
+
+      - name: Load repo review instructions
+        id: instructions
+        continue-on-error: true
+        run: |
+          EXTRA=""
+          for f in docs/code-review-instructions.md docs/coding-standards.md AGENTS.md CLAUDE.md; do
+            if [ -f "$f" ]; then
+              EXTRA="${EXTRA}
+
+=== From ${f} ===
+$(cat "$f")"
+            fi
+          done
+          {
+            echo "extra<<INSTRUCTIONS_EOF"
+            printf '%s\n' "$EXTRA"
+            echo "INSTRUCTIONS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: PR Agent
         id: pr_agent
         uses: axiomantic/pr-agent@main
@@ -62,6 +87,27 @@ jobs:
           github_action_config.auto_review: ${{ inputs.auto_review }}
           github_action_config.auto_describe: ${{ inputs.auto_describe }}
           github_action_config.auto_improve: ${{ inputs.auto_improve }}
+          # /improve depth-tuning knobs. Upstream defaults narrow the label
+          # space and disable score filtering, which produces shallow output.
+          # focus_only_on_problems=false re-enables the full label set
+          # (security/possible bug/possible issue/performance/enhancement/
+          # best practice/maintainability/typo) so the model performs a
+          # thorough scan; suggestions_score_threshold=5 then filters out
+          # the noise via the reflect-pass score (so we get scan + filter,
+          # not narrow-scan + no-filter). decouple_hunks=true uses the
+          # line-grounded prompt path directly and skips a redundant
+          # diff-conversion LLM hop. dual_publishing_score_threshold=8
+          # also publishes high-confidence suggestions as inline GitHub
+          # `suggestion` blocks (single-click apply) alongside the table.
+          pr_code_suggestions.focus_only_on_problems: "false"
+          pr_code_suggestions.suggestions_score_threshold: "5"
+          pr_code_suggestions.decouple_hunks: "true"
+          pr_code_suggestions.num_code_suggestions_per_chunk: "6"
+          pr_code_suggestions.max_number_of_calls: "5"
+          pr_code_suggestions.dual_publishing_score_threshold: "8"
+          # Per-repo conventions discovered by the previous step. Falls
+          # through harmlessly when the repo has no convention files.
+          pr_code_suggestions.extra_instructions: ${{ steps.instructions.outputs.extra }}
 
       - name: Verify review actually posted
         if: always() && steps.pr_agent.conclusion != 'skipped'
