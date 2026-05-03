@@ -1,0 +1,128 @@
+name: PR Review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: LLM model id passed to pi-coding-agent via LLM_MODEL.
+        required: false
+        type: string
+        default: deepseek/deepseek-v4-pro
+      base_url:
+        description: LLM base URL passed to pi-coding-agent via LLM_BASE_URL.
+        required: false
+        type: string
+        default: https://openrouter.ai/api/v1
+      bot_ref:
+        description: Git ref of axiomantic/momus to consume.
+        required: false
+        type: string
+        default: main
+      pr_number:
+        description: Pull request number to review (string).
+        required: true
+        type: string
+      event_name:
+        description: Triggering event name (pull_request | issue_comment | workflow_dispatch).
+        required: true
+        type: string
+    secrets:
+      OPENROUTER_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  gate:
+    # Coarse gate: skip bot-authored events, and for issue_comment require the
+    # comment is on a PR. Fine-grained `^/ai-review([[:space:]]|$)` body match
+    # happens in the trigger_check step below (GHA expressions cannot regex).
+    if: >-
+      github.event.sender.type != 'Bot' && (
+        github.event_name == 'pull_request' ||
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request != null
+        )
+      )
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.trigger_check.outputs.proceed }}
+    steps:
+      - name: Trigger check
+        id: trigger_check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          # Comment body is untrusted user input. Pass via env (never inline)
+          # to avoid shell injection in the run script.
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ "$EVENT_NAME" != "issue_comment" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if printf '%s' "$COMMENT_BODY" | grep -qE '^/ai-review([[:space:]]|$)'; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Comment body does not match /ai-review trigger; skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  review:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Resolve PR head SHA (issue_comment)
+        id: resolve_sha
+        if: github.event_name == 'issue_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          SHA=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefOid -q .headRefOid)
+          if [ -z "$SHA" ]; then
+            echo "::error::Could not resolve head SHA for PR #$PR_NUMBER"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR head (pull_request)
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Checkout PR head (issue_comment)
+        if: github.event_name == 'issue_comment'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve_sha.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Checkout default branch (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run momus
+        uses: axiomantic/momus@${{ inputs.bot_ref }}
+        env:
+          LLM_API_KEY: ${{ secrets.OPENROUTER_KEY }}
+          LLM_BASE_URL: ${{ inputs.base_url }}
+          LLM_MODEL: ${{ inputs.model }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          pr_number: ${{ inputs.pr_number }}
+          event: ${{ inputs.event_name }}
