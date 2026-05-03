@@ -69,11 +69,14 @@ jobs:
               exit 0
             fi
           fi
-          # Concurrency: skip ourselves if another run for the same PR is
-          # already in flight. Reviews are expensive; the in-flight run will
-          # produce a result against the latest head once it finishes.
+          # Concurrency: skip ourselves if another run of THIS workflow for
+          # the same PR is already in flight. Filter by workflow_id so other
+          # workflows (build/test/etc.) on the same PR don't false-trip us.
+          # Reviews are expensive; the in-flight one will produce a result
+          # against the latest head when it finishes.
+          WF_ID=$(gh api "/repos/${REPO}/actions/runs/${THIS_RUN_ID}" --jq .workflow_id 2>/dev/null || echo 0)
           IN_FLIGHT=$(gh api \
-            "/repos/${REPO}/actions/runs?status=in_progress&per_page=100" \
+            "/repos/${REPO}/actions/workflows/${WF_ID}/runs?status=in_progress&per_page=100" \
             --jq '[.workflow_runs[] | select(.id != '"$THIS_RUN_ID"') | select(.pull_requests[]? .number == '"$PR_NUMBER"')] | length' \
             2>/dev/null || echo 0)
           if [ "${IN_FLIGHT:-0}" -gt 0 ]; then
