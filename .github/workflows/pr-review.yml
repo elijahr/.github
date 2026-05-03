@@ -21,9 +21,34 @@ on:
         description: Triggering event name (pull_request | issue_comment | workflow_dispatch).
         required: true
         type: string
+      trigger_command:
+        description: >-
+          Slash command that triggers a re-review when posted as a PR comment.
+          Default `/ai-review`. Override per repo via the calling workflow.
+        required: false
+        type: string
+        default: /ai-review
+      trigger_mention:
+        description: >-
+          Optional @-mention that also triggers a re-review (e.g.
+          `@axiomantic-momus[bot]`). Empty disables mention-based triggering.
+        required: false
+        type: string
+        default: ""
     secrets:
       OPENROUTER_KEY:
         required: true
+      MOMUS_APP_ID:
+        description: >-
+          Optional. GitHub App ID used to mint an installation token so the
+          bot can post APPROVE reviews. If unset, the bot falls back to the
+          default GITHUB_TOKEN and any APPROVE verdict is downgraded to COMMENT.
+        required: false
+      MOMUS_APP_PRIVATE_KEY:
+        description: >-
+          Optional. PEM-formatted private key for the GitHub App referenced by
+          MOMUS_APP_ID. Required if MOMUS_APP_ID is set.
+        required: false
 
 permissions:
   contents: read
@@ -33,8 +58,8 @@ permissions:
 jobs:
   gate:
     # Coarse gate: skip bot-authored events, and for issue_comment require the
-    # comment is on a PR. Fine-grained `^/ai-review([[:space:]]|$)` body match
-    # happens in the trigger_check step below (GHA expressions cannot regex).
+    # comment is on a PR. Fine-grained trigger-phrase match happens in the
+    # trigger_check step below (GHA expressions cannot regex).
     if: >-
       github.event.sender.type != 'Bot' && (
         github.event_name == 'pull_request' ||
@@ -55,16 +80,38 @@ jobs:
           # Comment body is untrusted user input. Pass via env (never inline)
           # to avoid shell injection in the run script.
           COMMENT_BODY: ${{ github.event.comment.body }}
+          TRIGGER_COMMAND: ${{ inputs.trigger_command }}
+          TRIGGER_MENTION: ${{ inputs.trigger_mention }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ inputs.pr_number }}
           THIS_RUN_ID: ${{ github.run_id }}
         run: |
           # Trigger filter: pull_request and workflow_dispatch always proceed;
-          # issue_comment requires the body to start with /ai-review.
+          # issue_comment requires the body to start with the configured slash
+          # command OR contain the configured @-mention.
           if [ "$EVENT_NAME" = "issue_comment" ]; then
-            if ! printf '%s' "$COMMENT_BODY" | grep -qE '^/ai-review([[:space:]]|$)'; then
-              echo "Comment body does not match /ai-review trigger; skipping."
+            matched=0
+            # Slash-command match: body starts with $TRIGGER_COMMAND followed by
+            # whitespace or end-of-line. ERE alternation safe because both
+            # the command and the body are quoted via env.
+            if printf '%s' "$COMMENT_BODY" \
+              | grep -qE "^$(printf '%s' "$TRIGGER_COMMAND" \
+                | sed -e 's/[][\\.*^$/+?(){}|]/\\&/g')([[:space:]]|$)"; then
+              matched=1
+            fi
+            # Mention match: body contains $TRIGGER_MENTION delimited by
+            # whitespace, punctuation, or string boundaries. Skip if mention
+            # is empty (feature disabled).
+            if [ "$matched" -eq 0 ] && [ -n "$TRIGGER_MENTION" ]; then
+              if printf '%s' "$COMMENT_BODY" \
+                | grep -qE "(^|[[:space:]])$(printf '%s' "$TRIGGER_MENTION" \
+                  | sed -e 's/[][\\.*^$/+?(){}|]/\\&/g')([[:space:]]|[[:punct:]]|$)"; then
+                matched=1
+              fi
+            fi
+            if [ "$matched" -eq 0 ]; then
+              echo "Comment did not match trigger command or mention; skipping."
               echo "proceed=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -95,11 +142,38 @@ jobs:
       pull-requests: write
       issues: write
     steps:
+      - name: Detect GitHub App config
+        # The `secrets` context cannot be referenced in step `if:` directly.
+        # Stage the values into env, then emit a boolean output the next
+        # step can gate on.
+        id: detect_app
+        env:
+          APP_ID: ${{ secrets.MOMUS_APP_ID }}
+          APP_KEY: ${{ secrets.MOMUS_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_KEY" ]; then
+            echo "has_app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_app=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mint GitHub App token
+        # When the App secrets are configured, mint an installation token so
+        # the bot's reviews are attributed to the App (and APPROVE verdicts
+        # are accepted). Otherwise this step is skipped and downstream steps
+        # fall back to GITHUB_TOKEN.
+        id: app_token
+        if: steps.detect_app.outputs.has_app == 'true'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.MOMUS_APP_ID }}
+          private-key: ${{ secrets.MOMUS_APP_PRIVATE_KEY }}
+
       - name: Resolve PR head SHA (issue_comment)
         id: resolve_sha
         if: github.event_name == 'issue_comment'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token || secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
@@ -136,7 +210,9 @@ jobs:
           LLM_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           LLM_BASE_URL: ${{ inputs.base_url }}
           LLM_MODEL: ${{ inputs.model }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Prefer the App-minted token (so APPROVE works) and fall back to
+          # the default GITHUB_TOKEN when the App isn't configured.
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token || secrets.GITHUB_TOKEN }}
         with:
           pr_number: ${{ inputs.pr_number }}
           event: ${{ inputs.event_name }}
