@@ -13,11 +13,6 @@ on:
         required: false
         type: string
         default: https://openrouter.ai/api/v1
-      bot_ref:
-        description: Git ref of axiomantic/momus to consume.
-        required: false
-        type: string
-        default: main
       pr_number:
         description: Pull request number to review (string).
         required: true
@@ -117,7 +112,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run momus
-        uses: axiomantic/momus@${{ inputs.bot_ref }}
+        uses: axiomantic/momus@main
         env:
           LLM_API_KEY: ${{ secrets.OPENROUTER_KEY }}
           LLM_BASE_URL: ${{ inputs.base_url }}
