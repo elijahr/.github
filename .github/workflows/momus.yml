@@ -7,7 +7,7 @@ on:
         description: LLM model id passed to pi-coding-agent via LLM_MODEL.
         required: false
         type: string
-        default: deepseek/deepseek-chat
+        default: deepseek/deepseek-v4-pro
       base_url:
         description: LLM base URL passed to pi-coding-agent via LLM_BASE_URL.
         required: false
