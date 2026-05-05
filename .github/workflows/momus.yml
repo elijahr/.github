@@ -205,7 +205,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run momus
-        uses: axiomantic/momus@main
+        uses: axiomantic/momus@v1
         env:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_BASE_URL: ${{ inputs.base_url }}
